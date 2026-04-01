@@ -1,41 +1,31 @@
 import {
+  HttpException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/sequelize';
-import { Order } from './entities/order.entity';
 import { createOrderDto } from './dto/create.order.dto';
-import { User } from '../users/entities/user.entity';
-import { Food } from '../foods/entities/food.entity';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
 export class OrdersService {
-  constructor(
-    @InjectModel(Order) private readonly orderModel: typeof Order,
-    @InjectModel(User) private readonly userModel: typeof User,
-    @InjectModel(Food) private readonly foodModel: typeof Food,
-  ) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async createOrder(payload: createOrderDto) {
-    try { 
-      const userExist = await this.userModel.findOne({
-        where: {
-          id: payload.userId,
-        },
+    try {
+      const userExist = await this.prisma.user.findUnique({
+        where: { id: payload.userId },
       });
 
       if (!userExist) throw new NotFoundException(`NOT FOUND SUCH A USER ID!`);
 
-      const foodExist = await this.foodModel.findOne({
-        where: {
-          id: payload.foodId,
-        },
+      const foodExist = await this.prisma.food.findUnique({
+        where: { id: payload.foodId },
       });
 
       if (!foodExist) throw new NotFoundException(`NOT FOUND SUCH A FOOD ID!`);
 
-      const existOrder = await this.orderModel.findOne({
+      const existOrder = await this.prisma.order.findFirst({
         where: {
           foodId: payload.foodId,
           userId: payload.userId,
@@ -43,20 +33,21 @@ export class OrdersService {
       });
       let newOrder;
       if (existOrder) {
-        // newOrder = await this.orderModel.update({
-        //     count: existOrder.dataValues.count + +payload.count
-        // }, {
-        //     where: {
-        //         id: existOrder.id
-        //     }
-        // })
-        await existOrder.increment('count', { by: payload.count });
-        newOrder = await existOrder.reload();
+        newOrder = await this.prisma.order.update({
+          where: { id: existOrder.id },
+          data: {
+            count: {
+              increment: payload.count,
+            },
+          },
+        });
       } else {
-        newOrder = await this.orderModel.create({
-          userId: payload.userId,
-          foodId: payload.foodId,
-          count: payload.count,
+        newOrder = await this.prisma.order.create({
+          data: {
+            userId: payload.userId,
+            foodId: payload.foodId,
+            count: payload.count,
+          },
         });
       }
 
@@ -66,8 +57,11 @@ export class OrdersService {
         data: newOrder,
       };
     } catch (error) {
-      console.log(error);
-      throw new InternalServerErrorException();
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException(error instanceof Error ? error.message : 'Unexpected error');
     }
   }
 }

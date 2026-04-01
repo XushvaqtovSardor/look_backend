@@ -1,27 +1,25 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/sequelize';
-import { Food } from './entities/food.entity';
 import { CreateFoodDto } from './dto/create.food.dto';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
 export class FoodsService {
-  constructor(
-    @InjectModel(Food)
-    private foodModel: typeof Food
-  ) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async createFood(body: CreateFoodDto, fileName: string) {
     try {
-      return await this.foodModel.create({
-        food_name: body.food_name,
-        food_img: fileName,
+      return await this.prisma.food.create({
+        data: {
+          food_name: body.food_name,
+          food_img: fileName,
+        },
       });
     } catch (error) {
-      throw new InternalServerErrorException(error.message);
+      throw new InternalServerErrorException(error instanceof Error ? error.message : 'Unexpected error');
     }
   }
 
   async findAll() {
-    return await this.foodModel.findAll();
+    return await this.prisma.food.findMany();
   }
 }

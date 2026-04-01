@@ -1,83 +1,101 @@
-import { ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/sequelize';
-import { User } from './entities/user.entity';
+import { ConflictException, HttpException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { createUserDto } from './dto/create.user.dto';
-import { Order } from '../orders/entities/order.entity';
-import { Food } from '../foods/entities/food.entity';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
 export class UsersService {
 
-    constructor(
-     @InjectModel(User)
-     private userModel : typeof User 
-    ){}
+  constructor(private readonly prisma: PrismaService) { }
 
-    async createUser(payload : createUserDto){
-        try{
-            const userExist = await this.userModel.findOne({where: {phone: payload.phone}});
-            if(userExist) throw new ConflictException('User phone number already exists in the database');
-            const fullname = payload.fullname
-            const phone = payload.phone
-            const newUser = await this.userModel.create({fullname, phone})
-            return {
-                success: true,
-                message: `SUCCESSFULLY CREATED A NEW USER`,
-                data: newUser
-            };
+  async createUser(payload: createUserDto) {
+    try {
+      const userExist = await this.prisma.user.findUnique({ where: { phone: payload.phone } });
+      if (userExist) throw new ConflictException('User phone number already exists in the database');
 
-        }catch(err){
-            console.log(err);
-            throw new InternalServerErrorException(err)
-        }
+      const newUser = await this.prisma.user.create({
+        data: {
+          fullname: payload.fullname,
+          phone: payload.phone,
+        },
+      });
 
-    }
-    async findAll(){
-        try{
-            return await this.userModel.findAll()
-        }catch(e){
-            throw new InternalServerErrorException(e)
-            
-        }
-    }
-
- async findById(id: number) {
-  try {
-    const orders = await Order.findAll({
-      where: { userId: id },
-      include: [
-        { model: User, attributes: ['id', 'fullname', 'phone'] },
-        { model: Food, attributes: ['food_name', 'food_img'] },
-      ],
-      attributes: ['count'],
-      raw: true,
-      nest: true,
-    });
-    if (!orders.length) {
-      const user = await this.userModel.findOne({where: {id}});
       return {
-        id,
-        user:user
+        success: true,
+        message: `SUCCESSFULLY CREATED A NEW USER`,
+        data: newUser
+      };
+
+    } catch (err) {
+      if (err instanceof HttpException) {
+        throw err;
       }
+
+      throw new InternalServerErrorException(err instanceof Error ? err.message : 'Unexpected error')
     }
-    const { id: userId, fullname, phone } = orders[0].user;
 
-    const foods = orders.map(o => ({
-      food_name: o.food.food_name,
-      food_img: o.food.food_img.split("/")[1],
-      count: o.count,
-    })); 
-
-    return {
-      id: userId,
-      fullname,
-      phone,
-      foods,
-    };
-  } catch (error) {
-    console.error(error.message);
-    throw new InternalServerErrorException(error.message);
   }
-}
+  async findAll() {
+    try {
+      return await this.prisma.user.findMany()
+    } catch (e) {
+      throw new InternalServerErrorException(e instanceof Error ? e.message : 'Unexpected error')
+
+    }
+  }
+
+  async findById(id: number) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id },
+        include: {
+          orders: {
+            select: {
+              count: true,
+              food: {
+                select: {
+                  food_name: true,
+                  food_img: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!user) {
+        throw new NotFoundException('NOT FOUND SUCH A USER ID!');
+      }
+
+      if (!user.orders.length) {
+        return {
+          id,
+          user: {
+            id: user.id,
+            fullname: user.fullname,
+            phone: user.phone,
+          },
+        };
+      }
+
+      const foods = user.orders.map((order) => ({
+        food_name: order.food.food_name,
+        food_img: order.food.food_img ? order.food.food_img.split('/').pop() : null,
+        count: order.count,
+      }));
+
+      return {
+        id: user.id,
+        fullname: user.fullname,
+        phone: user.phone,
+        foods,
+      };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException(error instanceof Error ? error.message : 'Unexpected error');
+    }
+  }
 
 }

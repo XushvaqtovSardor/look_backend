@@ -1,0 +1,38 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+}
+
+model User {
+    id       Int     @id @default(autoincrement())
+    fullname String
+    phone    String  @unique
+    orders   Order[]
+
+    @@map("users")
+}
+
+model Food {
+    id        Int     @id @default(autoincrement())
+    food_name String
+    food_img  String?
+    orders    Order[]
+
+    @@map("foods")
+}
+
+model Order {
+    id     Int @id @default(autoincrement())
+    userId Int
+    foodId Int
+    count  Int
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+    food Food @relation(fields: [foodId], references: [id], onDelete: Cascade)
+
+    @@unique([userId, foodId])
+    @@map("orders")
+}
