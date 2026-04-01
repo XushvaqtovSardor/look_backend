@@ -37,7 +37,7 @@ jobs:
             fi
 
             # ALWAYS enter project directory
-            cd 5oy_imtihon
+            cd look_backend
 
             echo "Stopping containers"
             docker compose down
