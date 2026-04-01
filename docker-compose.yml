@@ -7,8 +7,8 @@ services:
     restart: always
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 12345
-      POSTGRES_DB: imtihon_5oy
+      POSTGRES_PASSWORD: 13265
+      POSTGRES_DB: look_data
     ports:
       - '5497:5432'
     volumes:
@@ -37,7 +37,7 @@ services:
         pnpm run start:dev
       "
     environment:
-      DATABASE_URL: postgres://postgres:12345@db:5432/imtihon_5oy
+      DATABASE_URL: postgres://postgres:13265@db:5432/look_data
       # REDIS_HOST: redis
       # REDIS_PORT: 6379
 
